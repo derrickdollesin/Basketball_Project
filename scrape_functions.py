@@ -8,9 +8,6 @@ import pandas as pd
 import urllib.request
 from bs4 import BeautifulSoup
 
-
-
-
 def get_soup(url):
     '''
     Create a soup object of a web url
@@ -67,7 +64,6 @@ def get_player_ids(team, year):
         # print(ids)
         return players
     
-
 
 def get_player_data(username):
     url = f"https://www.basketball-reference.com/players/{username[0]}/{username}.html"
@@ -126,19 +122,33 @@ def get_player_data(username):
     ### Insert to Database+
 
     with sqlite3.connect("example.db", timeout=60) as conn:
-        for key, df in tables.items():
-            table_name = f"{username}_{key}"
 
+        for key, df in tables.items():
+
+            sql_table_name = f"{key}"
+
+            # append if table exists, create if not
             df.to_sql(
-                table_name,
+                sql_table_name,
+                conn,
+                if_exists="append",
+                index=False
+            )
+
+            # remove duplicate rows
+            deduped_df = pd.read_sql_query(
+                f'SELECT DISTINCT * FROM "{sql_table_name}"',
+                conn
+            )
+
+            deduped_df.to_sql(
+                sql_table_name,
                 conn,
                 if_exists="replace",
                 index=False
             )
 
     return tables
-
-data = get_player_data("westbru01")
 
 def get_seasonal_stats(player_id):
     table_name = f"{player_id}_per_game_stats"
@@ -224,17 +234,29 @@ def get_seasonal_stats(player_id):
 
     with sqlite3.connect("example.db", timeout=60) as conn:
         for key, df in tables.items():
+            sql_table_name = key
 
-            sql_table_name = f"{player_id}_{key}"
-
+            # append if table exists, create if not
             df.to_sql(
+                sql_table_name,
+                conn,
+                if_exists="append",
+                index=False
+            )
+
+            # remove duplicate rows from the table
+            deduped_df = pd.read_sql_query(
+                f'SELECT DISTINCT * FROM "{sql_table_name}"',
+                conn
+            )
+
+            deduped_df.to_sql(
                 sql_table_name,
                 conn,
                 if_exists="replace",
                 index=False
             )
 
+            print(f"{sql_table_name}: {deduped_df.shape}")
+            
     return tables
-
-data = get_seasonal_stats('westbru01')
-data
