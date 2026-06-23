@@ -2,6 +2,7 @@ import os
 import re
 import time
 import requests 
+import sqlite3
 import numpy as np
 import pandas as pd
 import urllib.request
@@ -70,51 +71,170 @@ def get_player_ids(team, year):
 
 def get_player_data(username):
     url = f"https://www.basketball-reference.com/players/{username[0]}/{username}.html"
+
     soup = get_soup(url)
     tbodies = soup.find_all("tbody")
 
-    tables = {} 
+    tables = {}
 
     for i, tbody in enumerate(tbodies):
-        
         rows_data = []
         table_name = None
-        
+
         for row in tbody.find_all("tr"):
             row_id = row.get("id")
-            
+
             if row_id and table_name is None:
                 table_name = row_id.split(".")[0]
-            
+
             cells = row.find_all(["th", "td"])
-            
+
             row_dict = {}
             for j, cell in enumerate(cells):
                 col_name = cell.get("data-stat")
                 text = cell.get_text(strip=True)
-                
+
                 if col_name is None:
                     col_name = f"col_{j}"
-                
+
                 row_dict[col_name] = text
-            
+
             if row_dict:
                 rows_data.append(row_dict)
 
         df = pd.DataFrame(rows_data)
-        
+
+        df = df.replace("", pd.NA)
+        df = df.dropna(thresh=df.shape[1] / 2)
+
+        df["player"] = username
+
         if table_name is None:
             table_name = f"table_{i}"
 
-            if table_name == 'table_0' and df.shape[0] == 5:
-                table_name = 'past_5_games'
-            elif table_name == 'table_3' and df.shape[0] == 7:
-                table_name = 'stathead_insight'
-        
+            if table_name == "table_0" and df.shape[0] == 5:
+                table_name = "past_5_games"
+            elif table_name == "table_3" and df.shape[0] == 7:
+                table_name = "stathead_insight"
+
         tables[table_name] = df
+
+    ## For Testing May Remove
+    for name, df in tables.items():
+        print(f"{name}: {df.shape}")
+
+    ### Insert to Database+
+
+    with sqlite3.connect("example.db", timeout=60) as conn:
+        for key, df in tables.items():
+            table_name = f"{username}_{key}"
+
+            df.to_sql(
+                table_name,
+                conn,
+                if_exists="replace",
+                index=False
+            )
+
+    return tables
+
+data = get_player_data("westbru01")
+
+def get_seasonal_stats(player_id):
+    table_name = f"{player_id}_per_game_stats"
+
+    with sqlite3.connect("example.db") as conn:
+        season_df = pd.read_sql_query(
+            f"SELECT * FROM {table_name}",
+            conn
+        )
+
+    player_years = (
+        season_df["year_id"]
+        .dropna()
+        .astype(str)
+        .str.split("-")
+        .str[0]
+        .astype(int)
+        .add(1)
+        .astype(str)
+        .unique()
+    )
+
+    tables = {}
+
+    for year in player_years:
+        link = f"https://www.basketball-reference.com/players/{player_id[0]}/{player_id}/gamelog/{year}/"
+
+        soup = get_soup(link)
+        tbodies = soup.find_all("tbody")
+
+        for i, tbody in enumerate(tbodies):
+            rows_data = []
+            table_name = None
+
+            for row in tbody.find_all("tr"):
+                # skip repeated header rows
+                if "thead" in row.get("class", []):
+                    continue
+
+                row_id = row.get("id")
+
+                if row_id and table_name is None:
+                    table_name = row_id.split(".")[0]
+
+                cells = row.find_all(["th", "td"])
+
+                row_dict = {}
+                for j, cell in enumerate(cells):
+                    col_name = cell.get("data-stat")
+
+                    if col_name is None:
+                        col_name = f"col_{j}"
+
+                    row_dict[col_name] = cell.get_text(strip=True)
+
+                if row_dict:
+                    rows_data.append(row_dict)
+
+            df = pd.DataFrame(rows_data)
+
+            if df.empty:
+                continue
+
+            df = df.replace("", pd.NA)
+
+            # Keep rows where at least half the columns are filled
+            min_non_empty = int(df.shape[1] / 2)
+            df = df.dropna(thresh=min_non_empty)
+
+            df["player"] = player_id
+            df["year"] = year
+
+            if table_name is None:
+                table_name = f"table_{i}"
+
+            # prevents overwriting seasons
+            key = f"{year}_{table_name}"
+            tables[key] = df
 
     for name, df in tables.items():
         print(f"{name}: {df.shape}")
-    
+
+
+    with sqlite3.connect("example.db", timeout=60) as conn:
+        for key, df in tables.items():
+
+            sql_table_name = f"{player_id}_{key}"
+
+            df.to_sql(
+                sql_table_name,
+                conn,
+                if_exists="replace",
+                index=False
+            )
+
     return tables
 
+data = get_seasonal_stats('westbru01')
+data
