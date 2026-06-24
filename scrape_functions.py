@@ -121,7 +121,7 @@ def get_player_data(username):
 
     ### Insert to Database+
 
-    with sqlite3.connect("example.db", timeout=60) as conn:
+    with sqlite3.connect("nba.db", timeout=60) as conn:
 
         for key, df in tables.items():
 
@@ -151,11 +151,14 @@ def get_player_data(username):
     return tables
 
 def get_seasonal_stats(player_id):
-    table_name = f"{player_id}_per_game_stats"
+    table_name = f"per_game_stats"
 
-    with sqlite3.connect("example.db") as conn:
+    with sqlite3.connect("nba.db") as conn:
         season_df = pd.read_sql_query(
-            f"SELECT * FROM {table_name}",
+            f"""
+            SELECT * 
+            FROM {table_name}
+            WHERE player = '{player_id}'""",
             conn
         )
 
@@ -232,7 +235,7 @@ def get_seasonal_stats(player_id):
         print(f"{name}: {df.shape}")
 
 
-    with sqlite3.connect("example.db", timeout=60) as conn:
+    with sqlite3.connect("nba.db", timeout=60) as conn:
         for key, df in tables.items():
             sql_table_name = key
 
