@@ -116,8 +116,8 @@ def get_player_data(username):
         tables[table_name] = df
 
     ## For Testing May Remove
-    for name, df in tables.items():
-        print(f"{name}: {df.shape}")
+    # for name, df in tables.items():
+    #     print(f"{name}: {df.shape}")
 
     ### Insert to Database+
 
@@ -150,6 +150,8 @@ def get_player_data(username):
 
     return tables
 
+
+### DO NOT USE FOR NOW ###
 def get_seasonal_stats(player_id):
     table_name = f"per_game_stats"
 
@@ -231,8 +233,8 @@ def get_seasonal_stats(player_id):
             key = f"{year}_{table_name}"
             tables[key] = df
 
-    for name, df in tables.items():
-        print(f"{name}: {df.shape}")
+    # for name, df in tables.items():
+    #     print(f"{name}: {df.shape}")
 
 
     with sqlite3.connect("nba.db", timeout=60) as conn:
@@ -260,6 +262,6 @@ def get_seasonal_stats(player_id):
                 index=False
             )
 
-            print(f"{sql_table_name}: {deduped_df.shape}")
+            # print(f"{sql_table_name}: {deduped_df.shape}")
             
     return tables
